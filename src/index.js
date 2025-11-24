@@ -9,12 +9,18 @@ const rateLimit = require('express-rate-limit');
 
 app.use(helmet());
 app.use(express.json());
+
+// CORS
+const allowedOrigin =
+  process.env.FRONTEND_ORIGIN || 'http://localhost:5173';
+
 app.use(
   cors({
-    origin: "https://tinylink.vercel.app",
-    credentials: true,
+    origin: allowedOrigin,
+    // credentials: false by default; only enable if you actually use cookies
   })
 );
+
 app.use(rateLimit({ windowMs: 60 * 1000, max: 60 }));
 
 app.get('/healthz', async (req, res) => {
@@ -33,9 +39,14 @@ app.get('/:code', async (req, res) => {
   const { code } = req.params;
   const r = await db.query('SELECT target_url FROM links WHERE code=$1', [code]);
   if (r.rowCount === 0) return res.status(404).send('Not found');
+
   const target = r.rows[0].target_url;
-  // update counters
-  await db.query('UPDATE links SET total_clicks = total_clicks + 1, last_clicked = now() WHERE code=$1', [code]);
+
+  await db.query(
+    'UPDATE links SET total_clicks = total_clicks + 1, last_clicked = now() WHERE code=$1',
+    [code]
+  );
+
   res.redirect(302, target);
 });
 
